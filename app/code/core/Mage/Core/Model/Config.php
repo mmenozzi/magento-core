@@ -24,6 +24,11 @@
  * @license    http://opensource.org/licenses/osl-3.0.php  Open Software License (OSL 3.0)
  */
 
+/**
+ * This is a monkey patch of the original Mage_Core_Model_Config (which can be found in app/code/core/Mage/Core/Model)
+ * to allow config override.
+ */
+
 
 /**
  * Core configuration class
@@ -190,6 +195,11 @@ class Mage_Core_Model_Config extends Mage_Core_Model_Config_Base
     protected $_allowedModules = array();
 
     /**
+     * @var Webgriffe_Config_Model_Config_Override
+     */
+    protected $_configOverrideModel;
+
+    /**
      * Class construct
      *
      * @param mixed $sourceData
@@ -201,6 +211,7 @@ class Mage_Core_Model_Config extends Mage_Core_Model_Config_Base
         $this->_prototype       = new Mage_Core_Model_Config_Base();
         $this->_cacheChecksum   = null;
         parent::__construct($sourceData);
+        $this->_configOverrideModel = new Webgriffe_Config_Model_Config_Override($this->_prototype);
     }
 
     /**
@@ -283,6 +294,11 @@ class Mage_Core_Model_Config extends Mage_Core_Model_Config_Base
         if (in_array($etcDir.DS.'local.xml', $files)) {
             $this->_isLocalConfigLoaded = true;
         }
+
+        // Webgriffe Config Extension - Loading Base Override
+        $this->extend($this->_configOverrideModel->getBaseOverride());
+        // Webgriffe Config Extension - Loading Base Override
+
         return $this;
     }
 
@@ -327,6 +343,10 @@ class Mage_Core_Model_Config extends Mage_Core_Model_Config_Base
         $this->_isLocalConfigLoaded = $mergeConfig->loadFile($this->getOptions()->getEtcDir().DS.'local.xml');
         if ($this->_isLocalConfigLoaded) {
             $this->extend($mergeConfig);
+
+            // Webgriffe Config Extension - Re-loading Base Override
+            $this->extend($this->_configOverrideModel->getBaseOverride());
+            // Webgriffe Config Extension - Re-loading Base Override
         }
 
         $this->applyExtends();
@@ -357,6 +377,13 @@ class Mage_Core_Model_Config extends Mage_Core_Model_Config_Base
             $dbConf->loadToXml($this);
             Varien_Profiler::stop('config/load-db');
         }
+
+        // Webgriffe Config Extension - Loading Override
+        if ($this->_isLocalConfigLoaded && Mage::isInstalled()) {
+            $this->extend($this->_configOverrideModel->getOverride());
+        }
+        // Webgriffe Config Extension - Loading Override
+
         return $this;
     }
 
@@ -1677,5 +1704,16 @@ class Mage_Core_Model_Config extends Mage_Core_Model_Config_Base
     protected function _isNodeNameHasUpperCase(Mage_Core_Model_Config_Element $event)
     {
         return (strtolower($event->getName()) !== (string)$event->getName());
+    }
+
+    /**
+     * Webgriffe Config Extension.
+     * Config override model getter.
+     *
+     * @return \Webgriffe_Config_Model_Config_Override
+     */
+    public function getConfigOverrideModel()
+    {
+        return $this->_configOverrideModel;
     }
 }
